@@ -32,3 +32,42 @@
 ;; Portfolio Constants
 (define-constant MAX-TOKENS-PER-PORTFOLIO u10)        ;; Asset diversification limit
 (define-constant BASIS-POINTS u10000)                 ;; Precision denominator
+
+;; Core Data Structures
+(define-map Portfolios                                ;; Master portfolio registry
+    uint                                              ;; portfolio-id
+    {
+        owner: principal,                             ;; Controlling account
+        created-at: uint,                             ;; Block height
+        last-rebalanced: uint,                        ;; Rebalance timestamp
+        total-value: uint,                            ;; Aggregated TVL
+        active: bool,                                 ;; Operational status
+        token-count: uint                             ;; Asset count
+    }
+)
+
+(define-map PortfolioAssets                           ;; Asset allocation storage
+    {portfolio-id: uint, token-id: uint}              ;; Composite key
+    {
+        target-percentage: uint,                      ;; BPS allocation target
+        current-amount: uint,                         ;; Current holdings
+        token-address: principal                      ;; Asset contract
+    }
+)
+
+(define-map UserPortfolios                            ;; User portfolio index
+    principal                                         ;; Owner address
+    (list 20 uint)                                    ;; Portfolio ID registry
+)
+
+;; READ-ONLY INTERFACE
+
+;; Retrieve portfolio metadata
+(define-read-only (get-portfolio (portfolio-id uint))
+    (map-get? Portfolios portfolio-id)
+)
+
+;; Get asset details for specific portfolio
+(define-read-only (get-portfolio-asset (portfolio-id uint) (token-id uint))
+    (map-get? PortfolioAssets {portfolio-id: portfolio-id, token-id: token-id})
+)
