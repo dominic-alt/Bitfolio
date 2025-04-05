@@ -71,3 +71,58 @@
 (define-read-only (get-portfolio-asset (portfolio-id uint) (token-id uint))
     (map-get? PortfolioAssets {portfolio-id: portfolio-id, token-id: token-id})
 )
+
+;; List all portfolios owned by address
+(define-read-only (get-user-portfolios (user principal))
+    (default-to (list) (map-get? UserPortfolios user))
+)
+
+;; Calculate rebalance requirements
+(define-read-only (calculate-rebalance-amounts (portfolio-id uint))
+    (let (
+        (portfolio (unwrap! (get-portfolio portfolio-id) ERR-INVALID-PORTFOLIO))
+        (total-value (get total-value portfolio))
+    )
+    (ok {
+        portfolio-id: portfolio-id,
+        total-value: total-value,
+        needs-rebalance: (> (- stacks-block-height (get last-rebalanced portfolio)) u144) ;; 24h blocks
+    }))
+)
+
+;; PRIVATE HELPERS
+
+;; Validate token ID against portfolio configuration
+(define-private (validate-token-id (portfolio-id uint) (token-id uint))
+    (let ((portfolio (unwrap! (get-portfolio portfolio-id) false)))
+    (and 
+        (< token-id MAX-TOKENS-PER-PORTFOLIO)
+        (< token-id (get token-count portfolio))
+        true
+    ))
+)
+
+;; Percentage validation (0-10000 basis points)
+(define-private (validate-percentage (percentage uint))
+    (and (>= percentage u0) (<= percentage BASIS-POINTS))
+)
+
+;; Portfolio allocation sanity check
+(define-private (validate-portfolio-percentages (percentages (list 10 uint)))
+    (fold check-percentage-sum percentages true)
+)
+
+;; Fold helper for percentage validation
+(define-private (check-percentage-sum (current-percentage uint) (valid bool))
+    (and valid (validate-percentage current-percentage))
+)
+
+;; Update user portfolio index with new entry
+(define-private (add-to-user-portfolios (user principal) (portfolio-id uint))
+    (let (
+        (current-portfolios (get-user-portfolios user))
+        (new-portfolios (unwrap! (as-max-len? (append current-portfolios portfolio-id) u20) ERR-USER-STORAGE-FAILED))
+    )
+    (map-set UserPortfolios user new-portfolios)
+    (ok true))
+)
